@@ -7,7 +7,7 @@ một phần state cần cập nhật (partial dict) — LangGraph tự merge v�
 from __future__ import annotations
 
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from app.retrieval.retriever import RetrievedChunk
 
@@ -21,9 +21,14 @@ class GradedChunk(TypedDict):
 
 
 class RetrieveTask(TypedDict):
-    """Payload gửi qua Send() tới node parallel_retrieve — mỗi task 1 sub-question."""
+    """Payload gửi qua Send() tới node parallel_retrieve — mỗi task 1 sub-question.
+
+    Nhánh Send CHỈ thấy đúng payload này, không thấy GraphState đầy đủ — nên
+    _trace_span phải truyền lại ở đây để parallel_retrieve tạo được nested span
+    (xem send_retrieve trong nodes.py)."""
 
     sub_question: str
+    _trace_span: object
 
 
 class GraphState(TypedDict, total=False):
@@ -56,3 +61,5 @@ class GraphState(TypedDict, total=False):
     graded: list[GradedChunk]        # kết quả grading từng chunk
     web_search_used: bool            # có fallback web search không (để hiển thị UI)
     generation: str                  # câu trả lời cuối cùng
+    output_issues: list[str]         # (Buổi 7) vấn đề check_output phát hiện, nếu có
+    _trace_span: Any                 # (Buổi 7) span cha LangFuse — xem monitoring/tracing.py

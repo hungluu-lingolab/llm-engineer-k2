@@ -77,6 +77,21 @@ class Settings(BaseSettings):
     agent_min_relevant_chunks: int = Field(default=1, alias="AGENT_MIN_RELEVANT_CHUNKS")
     agent_web_search_results: int = Field(default=3, alias="AGENT_WEB_SEARCH_RESULTS")
 
+    # ── Guardrails & Evaluation (Buổi 7) ─────────────────────────────────────
+    # Prompt injection: bật thêm LLM-based check ngoài regex (tốn 1 lời gọi LLM).
+    guardrails_llm_injection_check: bool = Field(
+        default=False, alias="GUARDRAILS_LLM_INJECTION_CHECK"
+    )
+    guardrails_min_answer_len: int = Field(default=10, alias="GUARDRAILS_MIN_ANSWER_LEN")
+
+    # ── Monitoring — LangFuse (Buổi 7, Section 4) ────────────────────────────
+    # Tắt mặc định: khi chưa điền LANGFUSE_* thật, tracing là no-op, không bắt
+    # buộc cài/kích hoạt LangFuse để chạy phần còn lại của codebase.
+    monitoring_enabled: bool = Field(default=False, alias="MONITORING_ENABLED")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    langfuse_host: str = Field(default="https://cloud.langfuse.com", alias="LANGFUSE_HOST")
+
     # ── App ─────────────────────────────────────────────────────────────────
     app_name: str = Field(default="Vietnamese Legal Assistant", alias="APP_NAME")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

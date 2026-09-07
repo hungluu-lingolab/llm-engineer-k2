@@ -8,10 +8,15 @@ Mở docs tương tác: http://localhost:8000/docs
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from pathlib import Path
 
-from app.api import routes_chat
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from app.api import routes_admin, routes_chat
 from app.config import settings
+from app.guardrails.checks import GuardrailViolation
 
 app = FastAPI(
     title=settings.app_name,
@@ -20,6 +25,25 @@ app = FastAPI(
 )
 
 app.include_router(routes_chat.router)
+app.include_router(routes_admin.router)
+
+_STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
+@app.get("/", tags=["meta"])
+def chat_ui() -> FileResponse:
+    """Demo UI — chat đơn giản, lịch sử lưu ở localStorage (xem app/static/chat.html)."""
+    return FileResponse(_STATIC_DIR / "chat.html")
+
+
+@app.exception_handler(GuardrailViolation)
+def guardrail_violation_handler(request: Request, exc: GuardrailViolation) -> JSONResponse:
+    """Input bị guardrails chặn (Buổi 7) → HTTP 400 với lý do rõ ràng."""
+    return JSONResponse(
+        status_code=400,
+        content={"error": "input_rejected", "reason": exc.reason, "details": exc.details},
+    )
 
 
 @app.get("/health", tags=["meta"])

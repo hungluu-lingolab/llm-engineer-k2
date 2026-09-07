@@ -20,12 +20,13 @@ pypdf>=4.2.0                    # đọc PDF (native, thay LangChain loader)
 langgraph>=0.2.0                 # CHỈ orchestrate control flow; mọi call vẫn native SDK
 tavily-python>=0.5.0             # web search fallback (native, không qua LangChain)
 
+# ─── Buổi 7: Evaluation, Guardrails & Monitoring ─────────────────────────────
+langfuse>=2.0.0
+
 # ─── Dev / test ──────────────────────────────────────────────────────────────
 pytest>=8.2.0
 pytest-asyncio>=0.23.0
 
 # ─── Các buổi sau sẽ bổ sung (giữ comment để thấy lộ trình) ───────────────────
-# Buổi 7 (Evaluation & Guardrails):
-#   rouge-score, bert-score, nltk
 # Buổi 9 (Capstone):
 #   gradio>=4.0.0

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vietnamese Legal Assistant — Demo</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e6e8ec;
+    --muted: #8b90a0;
+    --accent: #4f7cff;
+    --user-bubble: #4f7cff;
+    --bot-bubble: #1f232c;
+    --error: #ff5c6c;
+    --warn: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+  }
+  header .sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .mode-toggle {
+    display: flex;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .mode-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: white;
+  }
+  button.clear-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button.clear-btn:hover { color: var(--error); border-color: var(--error); }
+  button.ingest-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button.ingest-btn:hover { color: var(--accent); border-color: var(--accent); }
+  button.ingest-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #collection-status {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  #collection-status.empty { color: var(--warn); }
+  #collection-status.ready { color: #4caf6a; }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .msg-row { display: flex; }
+  .msg-row.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 72%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    line-height: 1.5;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg-row.user .bubble {
+    background: var(--user-bubble);
+    color: white;
+    border-bottom-right-radius: 3px;
+  }
+  .msg-row.bot .bubble {
+    background: var(--bot-bubble);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+  .msg-row.error .bubble {
+    background: rgba(255, 92, 108, 0.12);
+    border: 1px solid var(--error);
+    color: var(--error);
+  }
+  .meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .badge.web { color: var(--warn); border-color: var(--warn); }
+  details.sources {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  details.sources summary {
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .source-item {
+    margin-top: 6px;
+    padding: 8px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .source-item .src-name { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+
+  #input-bar {
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    gap: 10px;
+  }
+  #question {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+  }
+  #question:focus { outline: none; border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .typing { color: var(--muted); font-style: italic; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Vietnamese Legal Assistant</h1>
+    <div class="sub">Demo pipeline — retrieval + guardrails + (tùy chế độ) agentic RAG</div>
+  </div>
+  <div class="controls">
+    <span id="collection-status">đang kiểm tra dữ liệu...</span>
+    <button class="ingest-btn" id="ingest-btn">⟳ Ingest dữ liệu</button>
+    <div class="mode-toggle">
+      <button id="mode-stream" class="active">Streaming</button>
+      <button id="mode-agent">Agent (CRAG)</button>
+    </div>
+    <button class="clear-btn" id="clear-btn">Xoá lịch sử</button>
+  </div>
+</header>
+
+<div id="messages"></div>
+
+<div id="input-bar">
+  <textarea id="question" rows="1" placeholder="Hỏi về luật doanh nghiệp... (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+  <button id="send-btn">Gửi</button>
+</div>
+
+<script>
+const STORAGE_KEY = "legal_assistant_chat_history_v1";
+const messagesEl = document.getElementById("messages");
+const questionEl = document.getElementById("question");
+const sendBtn = document.getElementById("send-btn");
+const clearBtn = document.getElementById("clear-btn");
+const modeStreamBtn = document.getElementById("mode-stream");
+const modeAgentBtn = document.getElementById("mode-agent");
+const ingestBtn = document.getElementById("ingest-btn");
+const statusEl = document.getElementById("collection-status");
+
+let mode = "stream"; // "stream" | "agent"
+let history = loadHistory();
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+}
+
+function renderAll() {
+  messagesEl.innerHTML = "";
+  for (const m of history) renderMessage(m, false);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function renderMessage(m, animate) {
+  const row = document.createElement("div");
+  row.className = `msg-row ${m.role}`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = m.text;
+  row.appendChild(bubble);
+
+  if (m.meta) {
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    if (m.meta.model) {
+      const b = document.createElement("span");
+      b.className = "badge";
+      b.textContent = m.meta.model;
+      meta.appendChild(b);
+    }
+    if (m.meta.web_search_used) {
+      const b = document.createElement("span");
+      b.className = "badge web";
+      b.textContent = "web search fallback";
+      meta.appendChild(b);
+    }
+    bubble.appendChild(meta);
+  }
+
+  if (m.meta && m.meta.sub_questions && m.meta.sub_questions.length > 1) {
+    const details = document.createElement("details");
+    details.className = "sources";
+    const summary = document.createElement("summary");
+    summary.textContent = `${m.meta.sub_questions.length} sub-questions (query decomposition)`;
+    details.appendChild(summary);
+    m.meta.sub_questions.forEach((sq, i) => {
+      const item = document.createElement("div");
+      item.className = "source-item";
+      const name = document.createElement("div");
+      name.className = "src-name";
+      name.textContent = `${i + 1}`;
+      const text = document.createElement("div");
+      text.textContent = sq;
+      item.appendChild(name);
+      item.appendChild(text);
+      details.appendChild(item);
+    });
+    bubble.appendChild(details);
+  }
+
+  if (m.meta && m.meta.sources && m.meta.sources.length) {
+    const details = document.createElement("details");
+    details.className = "sources";
+    const summary = document.createElement("summary");
+    summary.textContent = `${m.meta.sources.length} nguồn tham khảo`;
+    details.appendChild(summary);
+    for (const s of m.meta.sources) {
+      const item = document.createElement("div");
+      item.className = "source-item";
+      const name = document.createElement("div");
+      name.className = "src-name";
+      name.textContent = `${s.source || "?"} (score=${s.score?.toFixed?.(3) ?? s.score})`;
+      const text = document.createElement("div");
+      text.textContent = s.text;
+      item.appendChild(name);
+      item.appendChild(text);
+      details.appendChild(item);
+    }
+    bubble.appendChild(details);
+  }
+
+  messagesEl.appendChild(row);
+  return { row, bubble };
+}
+
+function setMode(newMode) {
+  mode = newMode;
+  modeStreamBtn.classList.toggle("active", mode === "stream");
+  modeAgentBtn.classList.toggle("active", mode === "agent");
+}
+modeStreamBtn.addEventListener("click", () => setMode("stream"));
+modeAgentBtn.addEventListener("click", () => setMode("agent"));
+
+clearBtn.addEventListener("click", () => {
+  history = [];
+  saveHistory();
+  renderAll();
+});
+
+async function sendMessage() {
+  const question = questionEl.value.trim();
+  if (!question) return;
+
+  questionEl.value = "";
+  questionEl.style.height = "auto";
+  sendBtn.disabled = true;
+
+  history.push({ role: "user", text: question });
+  saveHistory();
+  renderMessage({ role: "user", text: question });
+  scrollToBottom();
+
+  if (mode === "stream") {
+    await sendStreaming(question);
+  } else {
+    await sendAgent(question);
+  }
+
+  sendBtn.disabled = false;
+  questionEl.focus();
+}
+
+async function sendStreaming(question) {
+  const { bubble } = renderMessage({ role: "bot", text: "" });
+  const typing = document.createElement("span");
+  typing.className = "typing";
+  typing.textContent = "đang trả lời...";
+  bubble.appendChild(typing);
+  scrollToBottom();
+
+  try {
+    const res = await fetch("/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new GuardrailError(res.status, body);
+    }
+
+    typing.remove();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      full += decoder.decode(value, { stream: true });
+      bubble.textContent = full;
+      scrollToBottom();
+    }
+
+    history.push({ role: "bot", text: full });
+    saveHistory();
+  } catch (err) {
+    bubble.parentElement.remove();
+    showError(err);
+  }
+}
+
+async function sendAgent(question) {
+  const { bubble } = renderMessage({ role: "bot", text: "" });
+  const typing = document.createElement("span");
+  typing.className = "typing";
+  typing.textContent = "đang retrieve + grade + generate (CRAG)...";
+  bubble.appendChild(typing);
+  scrollToBottom();
+
+  try {
+    const res = await fetch("/chat/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    const body = await res.json();
+    if (!res.ok) throw new GuardrailError(res.status, body);
+
+    typing.remove();
+    bubble.textContent = body.answer;
+
+    const meta = {
+      sources: body.sources,
+      web_search_used: body.web_search_used,
+      sub_questions: body.sub_questions,
+    };
+    const msg = { role: "bot", text: body.answer, meta };
+    history.push(msg);
+    saveHistory();
+    // Re-render this bubble with meta (sources/badges) attached.
+    bubble.parentElement.remove();
+    renderMessage(msg);
+    scrollToBottom();
+  } catch (err) {
+    bubble.parentElement.remove();
+    showError(err);
+  }
+}
+
+class GuardrailError extends Error {
+  constructor(status, body) {
+    super(body?.reason || body?.detail || `HTTP ${status}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function showError(err) {
+  let text;
+  if (err instanceof GuardrailError && err.status === 400) {
+    text = `Bị chặn bởi guardrails: ${err.body.reason || "unknown"}`;
+    if (err.body.details) text += `\n${JSON.stringify(err.body.details)}`;
+  } else {
+    text = `Lỗi: ${err.message}`;
+  }
+  const msg = { role: "error", text };
+  history.push(msg);
+  saveHistory();
+  renderMessage(msg);
+  scrollToBottom();
+}
+
+async function refreshCollectionStatus() {
+  try {
+    const res = await fetch("/admin/collection-status");
+    const body = await res.json();
+    if (body.count > 0) {
+      statusEl.textContent = `${body.count} chunks trong "${body.collection}"`;
+      statusEl.className = "ready";
+    } else {
+      statusEl.textContent = `"${body.collection}" rỗng — bấm Ingest dữ liệu trước khi hỏi`;
+      statusEl.className = "empty";
+    }
+  } catch {
+    statusEl.textContent = "không kết nối được server";
+    statusEl.className = "empty";
+  }
+}
+
+ingestBtn.addEventListener("click", async () => {
+  ingestBtn.disabled = true;
+  const original = ingestBtn.textContent;
+  ingestBtn.textContent = "⟳ đang ingest...";
+  try {
+    const res = await fetch("/admin/ingest", { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || "ingest thất bại");
+    await refreshCollectionStatus();
+  } catch (err) {
+    statusEl.textContent = `Lỗi ingest: ${err.message}`;
+    statusEl.className = "empty";
+  } finally {
+    ingestBtn.disabled = false;
+    ingestBtn.textContent = original;
+  }
+});
+
+refreshCollectionStatus();
+
+questionEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+questionEl.addEventListener("input", () => {
+  questionEl.style.height = "auto";
+  questionEl.style.height = questionEl.scrollHeight + "px";
+});
+sendBtn.addEventListener("click", sendMessage);
+
+renderAll();
+</script>
+</body>
+</html>
