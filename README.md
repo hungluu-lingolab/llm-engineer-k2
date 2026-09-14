@@ -20,8 +20,7 @@ dùng RAG.
 | **5** | RAG Pipeline | `loader`, `chunking`, `retriever` (native) + `ingest.py` → **RAG hoàn chỉnh** |
 | **6** | Agentic RAG | `agent/` — CRAG + Query Decomposition (LangGraph, mọi call native) |
 | **7** | Evaluation & Guardrails | `eval/`, `guardrails/` — LLM-as-Judge, RAG metrics, injection/PII defense — **stub → thật** |
-| 7 | Evaluation & Guardrails | `guardrails/`, `eval/` |
-| 8 | Production Optimization | `optimization/` (caching, routing) |
+| **8** | Production Optimization | `optimization/` — Prompt Caching, Semantic Cache, Model Routing (3 phương pháp) |
 | 9 | Capstone | Gradio UI + deploy HF Spaces |
 
 ### Buổi 1 đang ở đâu?
@@ -225,6 +224,26 @@ MONITORING_ENABLED=true
 > vẫn chạy được toàn bộ codebase. Cài `langfuse` (xem `requirements.txt`) chỉ
 > khi thật sự bật monitoring.
 
+### Buổi 8 — Production Optimization
+
+Latency & cost lên trọng tâm ở production. Ba kỹ thuật tối ưu:
+
+**Prompt Caching** — `optimization/prompt_cache.py` là utility để format message
+sao cho prefix tĩnh (system, context) nằm trước, động (user query) sau. OpenAI
+tự động cache prompt > 1024 tokens; dùng `PromptCacheStats` để track cache hit
+từ `response.usage.cache_read_input_tokens`.
+
+**Semantic Caching** — `optimization/caching.py` — cache dựa trên embedding
+similarity, không phải token-to-token. Nếu câu hỏi mới gần giống (sim > 0.92)
+với câu cũ, trả lại answer cũ ngay, không gọi LLM. Tiết kiệm cả latency lẫn cost.
+
+**Model Routing** — `optimization/routing.py` — ba phương pháp xếp theo tốc độ:
+  1. **Rule-based** (latency ~0): dùng heuristic cứng (keyword, độ dài query).
+  2. **Embedding similarity** (latency ~ms): embed query, so với centroid của mỗi nhóm.
+  3. **Classifier** (latency ~ms): train nhỏ classifier (LogisticRegression) nếu volume đủ lớn.
+
+Mục tiêu: gửi task dễ tới model rẻ (gpt-4o-mini), task khó tới model mạnh (gpt-4o).
+
 ---
 
 ## Cài đặt
@@ -302,7 +321,7 @@ app/
 ├── guardrails/        # ✓ injection.py, pii.py, checks.py — nối vào pipeline.py
 ├── eval/              # ✓ judge.py (LLM-as-Judge), ragas_native.py, metrics.py
 ├── monitoring/        # ✓ tracing.py — LangFuse hooks tối thiểu, no-op khi tắt
-└── optimization/      # STUB → Buổi 8
+└── optimization/      # ✓ prompt_cache.py, caching.py, routing.py — latency & cost tối ưu
 ```
 
 > **Bảo mật:** `.env` đã nằm trong `.gitignore`. Không bao giờ commit API key.

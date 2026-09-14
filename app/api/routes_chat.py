@@ -9,12 +9,57 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.api.schemas import AgentChatResponse, AgentSource, ChatRequest, ChatResponse
+from app.api.schemas import AgentChatResponse, AgentSource, ChatRequest, ChatResponse, OptimizationStats
 from app.llm.params import GenerationParams
 from app.pipeline import answer, answer_stream, answer_structured
 from app.schemas.domain import LegalAnswer
+from app.optimization.caching import SemanticCache
+from app.optimization.routing import rule_based_router
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+_embedder_cache = {}
+
+
+def _get_st_model():
+    """Lazy-load SentenceTransformer (multilingual for Vietnamese)."""
+    if "model" not in _embedder_cache:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _embedder_cache["model"] = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        except ImportError:
+            _embedder_cache["model"] = None
+    return _embedder_cache["model"]
+
+
+def _hash_embedder(text: str | list[str]):
+    """Fallback hash-based embedder."""
+    import hashlib
+    import numpy as np
+
+    if isinstance(text, list):
+        return [_hash_embedder(t) for t in text]
+    h = hashlib.sha256(text.encode()).digest()
+    vec = np.array([float(byte) for byte in h[:32]])
+    return vec / (np.linalg.norm(vec) + 1e-8)
+
+
+def _sentence_embedder(text: str | list[str]):
+    """Embed using SentenceTransformer, fallback to hash if unavailable."""
+    model = _get_st_model()
+
+    if model is None:
+        # Fallback to hash embedder
+        return _hash_embedder(text)
+
+    if isinstance(text, list):
+        return model.encode(text, convert_to_numpy=True)
+    else:
+        return model.encode([text], convert_to_numpy=True)[0]
+
+
+_semantic_cache = SemanticCache(embedder=_sentence_embedder, threshold=0.8)
 
 
 def _params_from(req: ChatRequest) -> GenerationParams | None:
@@ -30,8 +75,26 @@ def _params_from(req: ChatRequest) -> GenerationParams | None:
 @router.post("", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest) -> ChatResponse:
     """Trả lời non-streaming."""
-    text = answer(req.question, _params_from(req))
-    return ChatResponse(answer=text)
+    # Buổi 8: Routing decision (determines which model should be used)
+    # In production, this would be passed to answer() to select LLM
+    routing_model = rule_based_router(req.question)
+
+    # Buổi 8: Check semantic cache
+    cached_answer = _semantic_cache.get(req.question)
+    cache_hit = cached_answer is not None
+
+    if cache_hit:
+        text = cached_answer
+    else:
+        text = answer(req.question, _params_from(req))
+        _semantic_cache.set(req.question, text)
+
+    optimization = OptimizationStats(
+        routing_model=routing_model,
+        routing_method="rule_based",
+        cache_hit=cache_hit,
+    )
+    return ChatResponse(answer=text, optimization=optimization)
 
 
 @router.post("/stream")
@@ -56,8 +119,27 @@ def chat_agent_endpoint(req: ChatRequest) -> AgentChatResponse:
     """
     from app.agent.graph import run_agent
 
-    state = run_agent(req.question)
+    # Buổi 8: Check semantic cache
+    cached_answer = _semantic_cache.get(req.question)
+    cache_hit = cached_answer is not None
+
+    # Buổi 8: Routing decision (determines which model should be used)
+    # In production, this would be passed to run_agent() to select LLM
+    routing_model = rule_based_router(req.question)
+
+    if cache_hit:
+        state = {"generation": cached_answer, "documents": []}
+    else:
+        state = run_agent(req.question)
+        _semantic_cache.set(req.question, state.get("generation", ""))
+
     documents = state.get("documents", [])
+
+    optimization = OptimizationStats(
+        routing_model=routing_model,
+        routing_method="rule_based",
+        cache_hit=cache_hit,
+    )
     return AgentChatResponse(
         answer=state.get("generation", ""),
         sources=[
@@ -65,4 +147,5 @@ def chat_agent_endpoint(req: ChatRequest) -> AgentChatResponse:
         ],
         web_search_used=state.get("web_search_used", False),
         sub_questions=state.get("sub_questions", []),
+        optimization=optimization,
     )

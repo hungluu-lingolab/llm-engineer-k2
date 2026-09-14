@@ -11,6 +11,17 @@ from pydantic import BaseModel, Field
 from app.config import settings
 
 
+class OptimizationStats(BaseModel):
+    """Thống kê Buổi 8: prompt caching, semantic cache, routing."""
+
+    routing_model: str = Field(default="", description="Model được chọn qua routing (e.g., 'gpt-4o-mini')")
+    routing_method: str = Field(default="", description="Phương pháp routing ('rule_based', 'embedding', 'classifier')")
+    cache_hit: bool = Field(default=False, description="Semantic cache HIT (true) hay MISS (false)")
+    prompt_cache_created_tokens: int = Field(default=0, description="Tokens tạo cache mới (OpenAI)")
+    prompt_cache_read_tokens: int = Field(default=0, description="Tokens đọc từ cache (OpenAI)")
+    prompt_cache_hit_ratio: float = Field(default=0.0, description="Tỷ lệ cache hit 0-1 (Buổi 8)")
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, description="Câu hỏi của người dùng")
     # Cho phép override generation params mỗi request (Bài 1, Section 2).
@@ -21,6 +32,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     model: str = Field(default_factory=lambda: settings.llm_model)
+    optimization: OptimizationStats = Field(default_factory=OptimizationStats)
 
 
 class AgentSource(BaseModel):
@@ -36,3 +48,4 @@ class AgentChatResponse(BaseModel):
     sources: list[AgentSource]
     web_search_used: bool
     sub_questions: list[str]
+    optimization: OptimizationStats = Field(default_factory=OptimizationStats)

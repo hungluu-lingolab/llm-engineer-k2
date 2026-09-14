@@ -149,6 +149,20 @@
     padding: 1px 8px;
   }
   .badge.web { color: var(--warn); border-color: var(--warn); }
+  .badge.opt { color: #4caf6a; border-color: #4caf6a; }
+  .badge.cache-hit { background: rgba(76, 175, 106, 0.1); color: #4caf6a; border-color: #4caf6a; }
+  .badge.cache-miss { background: rgba(217, 164, 65, 0.1); color: var(--warn); border-color: var(--warn); }
+  .opt-stats {
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .opt-stats div { margin: 3px 0; }
+  .opt-stats strong { color: var(--accent); }
   details.sources {
     margin-top: 8px;
     font-size: 12px;
@@ -326,6 +340,35 @@ function renderMessage(m, animate) {
     bubble.appendChild(details);
   }
 
+  if (m.meta && m.meta.optimization && Object.keys(m.meta.optimization).some(k => m.meta.optimization[k])) {
+    const optDiv = document.createElement("div");
+    optDiv.className = "opt-stats";
+    const opt = m.meta.optimization;
+
+    if (opt.cache_hit !== undefined) {
+      const cacheDiv = document.createElement("div");
+      const cacheBadge = document.createElement("span");
+      cacheBadge.className = `badge ${opt.cache_hit ? "cache-hit" : "cache-miss"}`;
+      cacheBadge.textContent = opt.cache_hit ? "✓ Cache HIT" : "Cache MISS";
+      cacheDiv.appendChild(cacheBadge);
+      optDiv.appendChild(cacheDiv);
+    }
+
+    if (opt.prompt_cache_read_tokens > 0 || opt.prompt_cache_created_tokens > 0) {
+      const pcDiv = document.createElement("div");
+      pcDiv.innerHTML = `<strong>Prompt Cache:</strong> created=${opt.prompt_cache_created_tokens} read=${opt.prompt_cache_read_tokens} (hit ratio=${(opt.prompt_cache_hit_ratio * 100).toFixed(0)}%)`;
+      optDiv.appendChild(pcDiv);
+    }
+
+    if (opt.routing_model) {
+      const routeDiv = document.createElement("div");
+      routeDiv.innerHTML = `<strong>Routing:</strong> ${opt.routing_model} via ${opt.routing_method}`;
+      optDiv.appendChild(routeDiv);
+    }
+
+    bubble.appendChild(optDiv);
+  }
+
   messagesEl.appendChild(row);
   return { row, bubble };
 }
@@ -432,6 +475,7 @@ async function sendAgent(question) {
       sources: body.sources,
       web_search_used: body.web_search_used,
       sub_questions: body.sub_questions,
+      optimization: body.optimization,
     };
     const msg = { role: "bot", text: body.answer, meta };
     history.push(msg);

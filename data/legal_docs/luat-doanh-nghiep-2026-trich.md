@@ -96,6 +96,3 @@ Thành viên hội đồng, Kiểm soát viên được doanh nghiệp tạm ứ
 1. Tiền thưởng của Thành viên hội đồng, Kiểm soát viên được xác định trong quỹ tiền thưởng trích từ quỹ khen thưởng, phúc lợi theo quy định tại Luật Quản lý và đầu tư vốn nhà nước tại doanh nghiệp, quy định của Chính phủ về quản lý và đầu tư vốn nhà nước tại doanh nghiệp và quy chế thưởng của doanh nghiệp.
 
 2. Tiền thưởng cụ thể hằng năm của từng Thành viên hội đồng, Kiểm soát viên tối đa không vượt quá số tháng tiền lương của doanh nghiệp được trích để lập quỹ khen thưởng, phúc lợi quy định tại khoản 1 Điều này nhân với tỷ lệ phân bổ giữa quỹ khen thưởng và quỹ phúc lợi theo quy định hoặc quy chế của doanh nghiệp và nhân với mức tiền lương bình quân thực hiện theo tháng được hưởng tại doanh nghiệp của từng Thành viên hội đồng, Kiểm soát viên.
-
-
-Số điện thoại của Vinh là 0999999999, của Phụng là 0988888888.
