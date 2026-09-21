@@ -49,3 +49,31 @@ class AgentChatResponse(BaseModel):
     web_search_used: bool
     sub_questions: list[str]
     optimization: OptimizationStats = Field(default_factory=OptimizationStats)
+
+
+class AssistantMessageRequest(BaseModel):
+    """Module II, Bài 2 — gửi 1 lượt tin nhắn tới Personal Assistant (LangGraph)."""
+
+    thread_id: str = Field(min_length=1, description="Định danh hội thoại — dùng để checkpointer nhớ ngữ cảnh")
+    message: str = Field(min_length=1)
+
+
+class AssistantApprovalRequest(BaseModel):
+    """Phê duyệt/từ chối tool call đang chờ (HITL, Section 6)."""
+
+    thread_id: str = Field(min_length=1)
+    approve: bool
+    rejection_note: str = Field(default="", description="Lý do từ chối, nếu approve=false")
+
+
+class PendingToolCall(BaseModel):
+    name: str
+    args: dict
+
+
+class AssistantResponse(BaseModel):
+    """status='done' → answer có giá trị. status='pending_approval' → tool_call có giá trị."""
+
+    status: str
+    answer: str | None = None
+    tool_call: PendingToolCall | None = None

@@ -209,6 +209,48 @@
   }
   #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .typing { color: var(--muted); font-style: italic; font-size: 13px; }
+
+  .approval-card {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(217, 164, 65, 0.08);
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .approval-card .approval-title {
+    color: var(--warn);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .approval-card .tool-call {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(255,255,255,0.03);
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .approval-actions { display: flex; gap: 8px; }
+  .approval-actions button {
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+  }
+  .approval-actions .approve-btn { border-color: #4caf6a; color: #4caf6a; }
+  .approval-actions .approve-btn:hover { background: rgba(76,175,106,0.1); }
+  .approval-actions .reject-btn { border-color: var(--error); color: var(--error); }
+  .approval-actions .reject-btn:hover { background: rgba(255,92,108,0.1); }
+  .approval-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .approval-card.resolved { opacity: 0.6; }
+  .approval-card .resolved-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -216,7 +258,7 @@
 <header>
   <div>
     <h1>Vietnamese Legal Assistant</h1>
-    <div class="sub">Demo pipeline — retrieval + guardrails + (tùy chế độ) agentic RAG</div>
+    <div class="sub">Module I: RAG + guardrails · Module II: Personal Assistant agent (LangGraph, HITL)</div>
   </div>
   <div class="controls">
     <span id="collection-status">đang kiểm tra dữ liệu...</span>
@@ -224,6 +266,7 @@
     <div class="mode-toggle">
       <button id="mode-stream" class="active">Streaming</button>
       <button id="mode-agent">Agent (CRAG)</button>
+      <button id="mode-assistant">Assistant (M2)</button>
     </div>
     <button class="clear-btn" id="clear-btn">Xoá lịch sử</button>
   </div>
@@ -244,11 +287,16 @@ const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
 const modeStreamBtn = document.getElementById("mode-stream");
 const modeAgentBtn = document.getElementById("mode-agent");
+const modeAssistantBtn = document.getElementById("mode-assistant");
 const ingestBtn = document.getElementById("ingest-btn");
 const statusEl = document.getElementById("collection-status");
 
-let mode = "stream"; // "stream" | "agent"
+let mode = "stream"; // "stream" | "agent" | "assistant"
 let history = loadHistory();
+// Module II — mỗi phiên trình duyệt là 1 thread riêng cho checkpointer (MemorySaver).
+let assistantThreadId = localStorage.getItem("assistant_thread_id_v1")
+  || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+localStorage.setItem("assistant_thread_id_v1", assistantThreadId);
 
 function loadHistory() {
   try {
@@ -369,17 +417,92 @@ function renderMessage(m, animate) {
     bubble.appendChild(optDiv);
   }
 
+  if (m.pendingApproval) {
+    bubble.appendChild(renderApprovalCard(m.pendingApproval));
+  }
+
   messagesEl.appendChild(row);
   return { row, bubble };
+}
+
+function renderApprovalCard(pending) {
+  const card = document.createElement("div");
+  card.className = "approval-card" + (pending.resolved ? " resolved" : "");
+
+  const title = document.createElement("div");
+  title.className = "approval-title";
+  title.textContent = "⚠ Agent muốn gọi tool — cần bạn duyệt (HITL)";
+  card.appendChild(title);
+
+  const call = document.createElement("div");
+  call.className = "tool-call";
+  call.textContent = `${pending.tool_call.name}(${JSON.stringify(pending.tool_call.args)})`;
+  card.appendChild(call);
+
+  if (pending.resolved) {
+    const note = document.createElement("div");
+    note.className = "resolved-note";
+    note.textContent = pending.resolved === "approved" ? "✓ Đã duyệt" : "✗ Đã từ chối";
+    card.appendChild(note);
+    return card;
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "approval-actions";
+  const approveBtn = document.createElement("button");
+  approveBtn.className = "approve-btn";
+  approveBtn.textContent = "Duyệt ✓";
+  const rejectBtn = document.createElement("button");
+  rejectBtn.className = "reject-btn";
+  rejectBtn.textContent = "Từ chối ✗";
+
+  approveBtn.addEventListener("click", () => resolveApproval(true, approveBtn, rejectBtn));
+  rejectBtn.addEventListener("click", () => resolveApproval(false, approveBtn, rejectBtn));
+
+  actions.appendChild(approveBtn);
+  actions.appendChild(rejectBtn);
+  card.appendChild(actions);
+  return card;
+}
+
+async function resolveApproval(approve, approveBtn, rejectBtn) {
+  approveBtn.disabled = true;
+  rejectBtn.disabled = true;
+
+  const lastMsg = history[history.length - 1];
+  if (lastMsg && lastMsg.pendingApproval) lastMsg.pendingApproval.resolved = approve ? "approved" : "rejected";
+  saveHistory();
+
+  try {
+    const res = await fetch("/assistant/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        thread_id: assistantThreadId,
+        approve,
+        rejection_note: approve ? "" : "Người dùng từ chối qua UI",
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new GuardrailError(res.status, body);
+
+    renderAssistantResult(body);
+  } catch (err) {
+    showError(err);
+  } finally {
+    renderAll();
+  }
 }
 
 function setMode(newMode) {
   mode = newMode;
   modeStreamBtn.classList.toggle("active", mode === "stream");
   modeAgentBtn.classList.toggle("active", mode === "agent");
+  modeAssistantBtn.classList.toggle("active", mode === "assistant");
 }
 modeStreamBtn.addEventListener("click", () => setMode("stream"));
 modeAgentBtn.addEventListener("click", () => setMode("agent"));
+modeAssistantBtn.addEventListener("click", () => setMode("assistant"));
 
 clearBtn.addEventListener("click", () => {
   history = [];
@@ -402,8 +525,10 @@ async function sendMessage() {
 
   if (mode === "stream") {
     await sendStreaming(question);
-  } else {
+  } else if (mode === "agent") {
     await sendAgent(question);
+  } else {
+    await sendAssistant(question);
   }
 
   sendBtn.disabled = false;
@@ -488,6 +613,46 @@ async function sendAgent(question) {
     bubble.parentElement.remove();
     showError(err);
   }
+}
+
+async function sendAssistant(question) {
+  const { bubble } = renderMessage({ role: "bot", text: "" });
+  const typing = document.createElement("span");
+  typing.className = "typing";
+  typing.textContent = "agent đang xử lý (ReAct loop, LangGraph)...";
+  bubble.appendChild(typing);
+  scrollToBottom();
+
+  try {
+    const res = await fetch("/assistant/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread_id: assistantThreadId, message: question }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new GuardrailError(res.status, body);
+
+    bubble.parentElement.remove();
+    renderAssistantResult(body);
+  } catch (err) {
+    bubble.parentElement.remove();
+    showError(err);
+  }
+}
+
+function renderAssistantResult(body) {
+  if (body.status === "pending_approval") {
+    const msg = { role: "bot", text: "(chờ bạn duyệt hành động bên dưới)", pendingApproval: { tool_call: body.tool_call } };
+    history.push(msg);
+    saveHistory();
+    renderMessage(msg);
+  } else {
+    const msg = { role: "bot", text: body.answer || "" };
+    history.push(msg);
+    saveHistory();
+    renderMessage(msg);
+  }
+  scrollToBottom();
 }
 
 class GuardrailError extends Error {

@@ -23,6 +23,12 @@ tavily-python>=0.5.0             # web search fallback (native, không qua LangC
 # ─── Buổi 7: Evaluation, Guardrails & Monitoring ─────────────────────────────
 langfuse>=2.0.0
 
+# ─── Module II, Bài 2: Building Agents với LangGraph ─────────────────────────
+# ToolNode/bind_tools cần interface LangChain — ngoại lệ có chủ đích so với
+# "native SDK" (xem docstring app/agent_m2/nodes.py). langgraph đã có ở trên.
+langchain-openai>=0.2.0
+langgraph-checkpoint>=2.0.0      # MemorySaver (Section 5)
+
 # ─── Dev / test ──────────────────────────────────────────────────────────────
 pytest>=8.2.0
 pytest-asyncio>=0.23.0

@@ -14,18 +14,19 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_admin, routes_chat
+from app.api import routes_admin, routes_assistant, routes_chat
 from app.config import settings
 from app.guardrails.checks import GuardrailViolation
 
 app = FastAPI(
     title=settings.app_name,
-    description="RAG chatbot pháp lý — xây dựng xuyên suốt Module I (LLM Engineer).",
+    description="RAG chatbot pháp lý (Module I) + Personal Assistant agent (Module II).",
     version="0.1.0",
 )
 
 app.include_router(routes_chat.router)
 app.include_router(routes_admin.router)
+app.include_router(routes_assistant.router)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")

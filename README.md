@@ -246,6 +246,64 @@ Mục tiêu: gửi task dễ tới model rẻ (gpt-4o-mini), task khó tới mod
 
 ---
 
+---
+
+## Module II — AI Agent
+
+Module II chuyển từ "LLM trả lời câu hỏi" sang "LLM tự hành động". Track riêng
+khỏi Module I (RAG pháp lý) — dùng **LangGraph** làm framework chính xuyên
+suốt, code nằm ở `app/agent_m2/` (tách biệt khỏi `app/agent/` của Buổi 6, vốn
+là CRAG chuyên cho RAG).
+
+| Buổi | Chủ đề | Lắp vào codebase |
+|------|--------|------------------|
+| 1 | What Is an AI Agent? | Khái niệm — không có code |
+| **2** | **Building Agents với LangGraph** | `agent_m2/` — **ReAct loop + HITL chạy được** |
+
+### Buổi 2 — Building Agents với LangGraph
+
+Personal Assistant tiếng Việt minh hoạ trọn vẹn nội dung bài học: state/nodes/edges,
+tool execution loop (`ToolNode`), loop termination + phát hiện lặp vô hạn, memory
+qua nhiều lượt (`MemorySaver` + `thread_id`), và human-in-the-loop trước khi chạy tool.
+
+```
+user message → agent (LLM + bind_tools) → có tool call?
+                  ├─ Không → END, trả lời trực tiếp
+                  └─ Có → [DỪNG — chờ người duyệt] → tools (ToolNode) → agent → ...
+```
+
+> **Vì sao dùng `langchain_openai.ChatOpenAI` ở đây thay vì native SDK như mọi
+> nơi khác trong repo?** `ToolNode`/`bind_tools` (LangGraph prebuilt) chỉ tự
+> thực thi tool khi model được gọi qua interface LangChain — đây là ngoại lệ
+> có chủ đích, xem docstring [`app/agent_m2/nodes.py`](app/agent_m2/nodes.py).
+> `app/agent/` (Buổi 6, CRAG) vẫn 100% native vì tự viết tool loop tay.
+
+```bash
+# Lượt 1 — agent muốn gửi lời nhắc (tool nhạy cảm) → graph dừng chờ duyệt
+curl -X POST http://localhost:8000/assistant/message \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "demo-1", "message": "Nhắc tôi họp lúc 15h chiều nay"}'
+# → {"status": "pending_approval", "tool_call": {"name": "send_reminder", ...}}
+
+# Duyệt (approve=true) → graph chạy tiếp: tool thực thi thật, agent trả lời
+curl -X POST http://localhost:8000/assistant/approve \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "demo-1", "approve": true}'
+
+# Từ chối (approve=false) → tool KHÔNG chạy, agent nhận lý do từ chối làm quan sát
+curl -X POST http://localhost:8000/assistant/approve \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "demo-1", "approve": false, "rejection_note": "chưa cần"}'
+```
+
+`thread_id` giữ nguyên qua nhiều lượt `/assistant/message` để agent nhớ hội
+thoại (checkpointer `MemorySaver`, chỉ lưu RAM — production dùng `SqliteSaver`).
+`check_calendar`/`search_restaurant` chạy ngay không cần duyệt; `send_reminder`
+(có side-effect) luôn dừng ở `/assistant/message` chờ `/assistant/approve` vì
+graph compile với `interrupt_before=["tools"]` (áp dụng cho mọi tool call).
+
+---
+
 ## Cài đặt
 
 ```bash
@@ -317,7 +375,8 @@ app/
 ├── schemas/           # Pydantic structured output
 ├── tools/             # function calling
 ├── retrieval/         # ✓ RAG hoàn chỉnh: loader, chunking, embeddings, vectorstore, retriever, rerank
-├── agent/             # ✓ CRAG + Query Decomposition: graph.py (LangGraph), nodes.py, tools_web.py (Tavily)
+├── agent/             # ✓ Module I Buổi 6 — CRAG + Query Decomposition (LangGraph)
+├── agent_m2/          # ✓ Module II Buổi 2 — Personal Assistant: ReAct loop, ToolNode, HITL
 ├── guardrails/        # ✓ injection.py, pii.py, checks.py — nối vào pipeline.py
 ├── eval/              # ✓ judge.py (LLM-as-Judge), ragas_native.py, metrics.py
 ├── monitoring/        # ✓ tracing.py — LangFuse hooks tối thiểu, no-op khi tắt
