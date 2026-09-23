@@ -139,3 +139,32 @@ def _to_response(result: dict) -> dict:
     if pending is not None:
         return {"status": "pending_approval", "tool_call": {"name": pending["name"], "args": pending["args"]}}
     return {"status": "done", "answer": result["messages"][-1].content}
+
+def save_graph_visualization(path: str = "app/agent/graph.png") -> str:
+    """Xuất sơ đồ graph ra file — hữu ích để debug/trình bày cấu trúc CRAG.
+
+    Thử vẽ PNG trước (draw_mermaid_png — gọi API mermaid.ink, cần mạng).
+    Nếu không có mạng/lỗi, fallback ghi ra Mermaid text thuần (.mmd, không cần mạng) —
+    dán vào https://mermaid.live hoặc preview trực tiếp trong VSCode/GitHub.
+
+    Returns:
+        Đường dẫn file thực sự đã ghi (có thể khác `path` nếu fallback sang .mmd).
+    """
+    graph = _build_graph().get_graph()
+
+    try:
+        png_bytes = graph.draw_mermaid_png()
+        with open(path, "wb") as f:
+            f.write(png_bytes)
+        return path
+    except Exception:
+        # Offline hoặc mermaid.ink không khả dụng — fallback text thuần, luôn thành công.
+        mmd_path = path.rsplit(".", 1)[0] + ".mmd"
+        with open(mmd_path, "w", encoding="utf-8") as f:
+            f.write(graph.draw_mermaid())
+        return mmd_path
+
+
+if __name__ == "__main__":
+    # python -m app.agent.graph
+    save_graph_visualization("images/agent_graph_m2.png")

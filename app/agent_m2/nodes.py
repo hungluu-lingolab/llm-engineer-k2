@@ -97,7 +97,7 @@ def _detect_repetition(state: AssistantState, window: int = 4) -> bool:
 
 def should_compact_route(state: AssistantState) -> str:
     """Conditional edge sau recall: history vượt ngưỡng 40% → "compact", không → "agent"."""
-    if context.should_compact(state["messages"], settings.agent_context_window_tokens):
+    if context.should_compact(state["messages"], 200):
         return "compact"
     return "agent"
 
@@ -124,6 +124,8 @@ def compact_node(state: AssistantState) -> dict:
     # add_messages xoá theo id → cần id thật (message trong checkpointer luôn có id).
     removals = [RemoveMessage(id=m.id) for m in old_messages if getattr(m, "id", None)]
     summary_msg = SystemMessage(content=f"{context.SUMMARY_PREFIX} {summary}")
+
+    print(f"[compact_node] compacted {len(old_messages)} messages → summary: {summary}")
     return {"messages": removals + [summary_msg]}
 
 
@@ -186,6 +188,7 @@ def recall_node(state: AssistantState) -> dict:
         return {}
 
     block = "Thông tin đã biết về user:\n" + "\n".join(f"- {m}" for m in memories)
+    print(f"[recall_node] user_id={user_id}, recall {len(memories)} facts")
     return {"messages": [{"role": "system", "content": block}]}
 
 
@@ -215,5 +218,6 @@ def extract_and_store_node(state: AssistantState) -> dict:
     ).strip()
 
     if fact and fact.upper() != "NONE":
+        print(f"[extract_and_store_node] user_id={user_id}, store fact: {fact}")
         memory.save_to_long_term(user_id, fact)
     return {}
