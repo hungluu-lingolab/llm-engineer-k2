@@ -77,6 +77,22 @@ class Settings(BaseSettings):
     agent_min_relevant_chunks: int = Field(default=1, alias="AGENT_MIN_RELEVANT_CHUNKS")
     agent_web_search_results: int = Field(default=3, alias="AGENT_WEB_SEARCH_RESULTS")
 
+    # ── Module II, Bài 3: Agent Memory & Context Engineering ─────────────────
+    # Long-term memory: collection Qdrant RIÊNG (tách khỏi legal_docs của Module I).
+    agent_memory_collection: str = Field(
+        default="user_memory", alias="AGENT_MEMORY_COLLECTION"
+    )
+    # Context management (Section 2-4).
+    agent_max_messages: int = Field(default=20, alias="AGENT_MAX_MESSAGES")  # sliding window
+    agent_keep_recent_messages: int = Field(
+        default=6, alias="AGENT_KEEP_RECENT_MESSAGES"
+    )  # số message giữ nguyên khi summarize
+    # Ngưỡng token của "context window" để áp nguyên tắc 40-60% (ước lượng thô).
+    # Đặt nhỏ có chủ đích cho demo — dễ thấy summarization kích hoạt.
+    agent_context_window_tokens: int = Field(
+        default=2000, alias="AGENT_CONTEXT_WINDOW_TOKENS"
+    )
+
     # ── Guardrails & Evaluation (Buổi 7) ─────────────────────────────────────
     # Prompt injection: bật thêm LLM-based check ngoài regex (tốn 1 lời gọi LLM).
     guardrails_llm_injection_check: bool = Field(

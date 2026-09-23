@@ -297,6 +297,10 @@ let history = loadHistory();
 let assistantThreadId = localStorage.getItem("assistant_thread_id_v1")
   || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
 localStorage.setItem("assistant_thread_id_v1", assistantThreadId);
+// Buổi 3 — user_id ổn định cho long-term memory (xuyên nhiều thread/session).
+// "Xoá lịch sử" đổi thread_id (mất short-term) nhưng GIỮ user_id → long-term vẫn nhớ.
+let assistantUserId = localStorage.getItem("assistant_user_id_v1") || "demo-user";
+localStorage.setItem("assistant_user_id_v1", assistantUserId);
 
 function loadHistory() {
   try {
@@ -507,6 +511,10 @@ modeAssistantBtn.addEventListener("click", () => setMode("assistant"));
 clearBtn.addEventListener("click", () => {
   history = [];
   saveHistory();
+  // Buổi 3 demo: đổi thread_id (session mới → short-term mất) nhưng GIỮ user_id.
+  // Sau khi xoá, hỏi lại điều đã khai trước đó → agent vẫn nhớ nhờ long-term memory.
+  assistantThreadId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  localStorage.setItem("assistant_thread_id_v1", assistantThreadId);
   renderAll();
 });
 
@@ -627,7 +635,7 @@ async function sendAssistant(question) {
     const res = await fetch("/assistant/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread_id: assistantThreadId, message: question }),
+      body: JSON.stringify({ thread_id: assistantThreadId, message: question, user_id: assistantUserId }),
     });
     const body = await res.json();
     if (!res.ok) throw new GuardrailError(res.status, body);

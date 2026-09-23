@@ -259,6 +259,7 @@ là CRAG chuyên cho RAG).
 |------|--------|------------------|
 | 1 | What Is an AI Agent? | Khái niệm — không có code |
 | **2** | **Building Agents với LangGraph** | `agent_m2/` — **ReAct loop + HITL chạy được** |
+| **3** | **Memory & Context Engineering** | `agent_m2/memory.py`, `context.py` — **long-term memory + compaction** |
 
 ### Buổi 2 — Building Agents với LangGraph
 
@@ -301,6 +302,59 @@ thoại (checkpointer `MemorySaver`, chỉ lưu RAM — production dùng `Sqlite
 `check_calendar`/`search_restaurant` chạy ngay không cần duyệt; `send_reminder`
 (có side-effect) luôn dừng ở `/assistant/message` chờ `/assistant/approve` vì
 graph compile với `interrupt_before=["tools"]` (áp dụng cho mọi tool call).
+
+### Buổi 3 — Memory & Context Engineering
+
+Bổ sung 2 tầng bộ nhớ + quản lý context cho chính agent ở Buổi 2 (không tạo agent
+mới). File mới: [`memory.py`](app/agent_m2/memory.py) (long-term vector memory) và
+[`context.py`](app/agent_m2/context.py) (sliding window, summarization, nén tool
+output, nguyên tắc 40-60%, re-injection). Graph thêm 3 node quanh vòng lặp:
+
+```
+message → recall → [vượt ngưỡng 40%?] ─(có)→ compact ─┐
+              ↑                       └─(không)────────┴→ agent ⇄ tools → store → END
+        vector store ngoài                                                    ↓
+                                                                       vector store ngoài
+```
+
+| Loại memory | Sống ở đâu | Cơ chế |
+|---|---|---|
+| **Short-term** (session) | Graph state + checkpointer (`thread_id`) | đã có từ Buổi 2 |
+| **Long-term** (xuyên session) | Vector store ngoài (`user_id`) | `memory.py` — recall/store mỗi lượt |
+
+Long-term memory **tái dùng embeddings native của Module I** (`app/retrieval/embeddings.py`,
+OpenAI text-embedding-3-small) + collection Qdrant riêng `user_memory` — **không**
+kéo thêm `langchain_community`/`chromadb` như handbook, giữ triết lý native SDK.
+Khi chưa có `OPENAI_API_KEYS`, `memory.py` tự fallback sang store in-memory (keyword
+match) để demo/test vẫn chạy.
+
+```bash
+# Session A — user "minh" khai một sự thật đáng nhớ (long-term)
+curl -X POST http://localhost:8000/assistant/message \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "sess-A", "user_id": "minh", "message": "Tôi bị dị ứng hải sản, nhớ giúp tôi."}'
+
+# Session B — thread_id MỚI (short-term đã mất) nhưng cùng user_id → agent VẪN nhớ
+curl -X POST http://localhost:8000/assistant/message \
+  -H "Content-Type: application/json" \
+  -d '{"thread_id": "sess-B", "user_id": "minh", "message": "Gợi ý món ăn tối nay cho tôi."}'
+# → agent tránh gợi ý hải sản nhờ recall long-term memory (không phụ thuộc thread_id)
+```
+
+**Context engineering (chống context rot)** chia làm 2 loại thao tác, đặt ở 2 nơi
+khác nhau theo đúng kỷ luật "one node one function" của LangGraph:
+
+| Thao tác | Ở đâu | Vì sao |
+|---|---|---|
+| **Compaction** (summarize) | Node riêng `compact_node`, có conditional edge sau `recall` | Đây là bước DUY NHẤT **ghi đè state** (dùng `RemoveMessage` + summary qua reducer `add_messages`) — bản nén **persist**, các vòng `agent⇄tools` sau đó trong CÙNG lượt kế thừa, không nén lại. Nếu để trong `agent_node`, mỗi vòng lặp sẽ nén lại từ đầu mà không tái dùng — tốn LLM call thừa. |
+| Sliding window, repetition warning, re-injection | Trong `agent_node` | Chỉ dựng một `messages` list **tạm thời** gửi cho LLM lần gọi này — không ghi lại state, nên gộp chung 1 node là hợp lý (không mutate gì để tách). |
+
+`should_compact_route` kiểm tra ngưỡng **40%** window (`AGENT_CONTEXT_WINDOW_TOKENS`,
+đặt nhỏ để demo dễ thấy) ngay sau `recall`. `agent_node` re-inject chỉ dẫn cốt lõi ở
+*cuối* context (vị trí attention cao nhất) chống instruction fade-out, và áp sliding
+window (`AGENT_MAX_MESSAGES`) cho phần đã compact. `context.compress_tool_result()`
+nén output tool dài — viết sẵn nhưng **chưa nối vào graph** vì `ToolNode` prebuilt
+không có hook; xem ghi chú trong docstring hàm đó.
 
 ---
 
@@ -376,7 +430,9 @@ app/
 ├── tools/             # function calling
 ├── retrieval/         # ✓ RAG hoàn chỉnh: loader, chunking, embeddings, vectorstore, retriever, rerank
 ├── agent/             # ✓ Module I Buổi 6 — CRAG + Query Decomposition (LangGraph)
-├── agent_m2/          # ✓ Module II Buổi 2 — Personal Assistant: ReAct loop, ToolNode, HITL
+├── agent_m2/          # ✓ Module II — Personal Assistant agent (LangGraph)
+│                      #   Buổi 2: graph/nodes/tools/state (ReAct loop, ToolNode, HITL)
+│                      #   Buổi 3: memory.py (long-term vector memory), context.py (compaction)
 ├── guardrails/        # ✓ injection.py, pii.py, checks.py — nối vào pipeline.py
 ├── eval/              # ✓ judge.py (LLM-as-Judge), ragas_native.py, metrics.py
 ├── monitoring/        # ✓ tracing.py — LangFuse hooks tối thiểu, no-op khi tắt

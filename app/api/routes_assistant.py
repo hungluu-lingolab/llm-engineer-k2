@@ -16,8 +16,14 @@ router = APIRouter(prefix="/assistant", tags=["assistant"])
 
 @router.post("/message", response_model=AssistantResponse)
 def send_message(req: AssistantMessageRequest) -> AssistantResponse:
-    """Gửi 1 lượt tin nhắn. Có thể trả về `pending_approval` nếu agent muốn gọi tool."""
-    return AssistantResponse(**start_conversation(req.thread_id, req.message))
+    """Gửi 1 lượt tin nhắn. Có thể trả về `pending_approval` nếu agent muốn gọi tool.
+
+    `user_id` (Bài 3): bật long-term memory — agent recall thông tin đã biết về
+    user (dị ứng, sở thích...) và tự lưu sự thật mới sau mỗi lượt.
+    """
+    return AssistantResponse(
+        **start_conversation(req.thread_id, req.message, req.user_id)
+    )
 
 
 @router.post("/approve", response_model=AssistantResponse)

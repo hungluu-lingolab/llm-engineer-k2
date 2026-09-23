@@ -52,10 +52,14 @@ class AgentChatResponse(BaseModel):
 
 
 class AssistantMessageRequest(BaseModel):
-    """Module II, Bài 2 — gửi 1 lượt tin nhắn tới Personal Assistant (LangGraph)."""
+    """Module II, Bài 2-3 — gửi 1 lượt tin nhắn tới Personal Assistant (LangGraph)."""
 
-    thread_id: str = Field(min_length=1, description="Định danh hội thoại — dùng để checkpointer nhớ ngữ cảnh")
+    thread_id: str = Field(min_length=1, description="Định danh hội thoại (session) — short-term memory qua checkpointer")
     message: str = Field(min_length=1)
+    user_id: str = Field(
+        default="",
+        description="Bài 3: định danh user cho long-term memory (xuyên session). Bỏ trống → không dùng long-term memory.",
+    )
 
 
 class AssistantApprovalRequest(BaseModel):
